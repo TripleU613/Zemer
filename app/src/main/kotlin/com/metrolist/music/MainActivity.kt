@@ -162,7 +162,6 @@ import com.metrolist.music.playback.MusicService
 import com.metrolist.music.playback.MusicService.MusicBinder
 import com.metrolist.music.playback.PlayerConnection
 import com.metrolist.music.playback.queues.YouTubeQueue
-import com.metrolist.music.ui.component.AccountSettingsDialog
 import com.metrolist.music.ui.component.BottomSheetMenu
 import com.metrolist.music.ui.component.BottomSheetPage
 import com.metrolist.music.ui.component.IconButton
@@ -181,7 +180,7 @@ import com.metrolist.music.ui.screens.settings.DarkMode
 import com.metrolist.music.ui.screens.settings.NavigationTab
 import com.metrolist.music.ui.theme.ColorSaver
 import com.metrolist.music.ui.theme.DefaultThemeColor
-import com.metrolist.music.ui.theme.MetrolistTheme
+import com.metrolist.music.ui.theme.ZemerTheme
 import com.metrolist.music.ui.screens.SplashScreen
 import com.metrolist.music.ui.theme.extractThemeColor
 import com.metrolist.music.ui.utils.appBarScrollBehavior
@@ -415,7 +414,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            MetrolistTheme(
+            ZemerTheme(
                 darkTheme = useDarkTheme,
                 pureBlack = pureBlack,
                 themeColor = themeColor,
@@ -451,7 +450,6 @@ class MainActivity : ComponentActivity() {
 
                     val navController = rememberNavController()
                     val homeViewModel: HomeViewModel = hiltViewModel()
-                    val accountImageUrl by homeViewModel.accountImageUrl.collectAsState()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val (previousTab, setPreviousTab) = rememberSaveable { mutableStateOf("home") }
 
@@ -740,8 +738,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    var showAccountDialog by remember { mutableStateOf(false) }
-
                     val baseBg = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer
                     val insetBg = if (playerBottomSheetState.progress > 0f) Color.Transparent else baseBg
 
@@ -788,28 +784,11 @@ class MainActivity : ComponentActivity() {
                                                         contentDescription = stringResource(R.string.stats)
                                                     )
                                                 }
-                                                IconButton(onClick = { showAccountDialog = true }) {
-                                                    BadgedBox(badge = {
-                                                        if (latestVersionName != BuildConfig.VERSION_NAME) {
-                                                            Badge()
-                                                        }
-                                                    }) {
-                                                        if (accountImageUrl != null) {
-                                                            AsyncImage(
-                                                                model = accountImageUrl,
-                                                                contentDescription = stringResource(R.string.account),
-                                                                modifier = Modifier
-                                                                    .size(24.dp)
-                                                                    .clip(CircleShape)
-                                                            )
-                                                        } else {
-                                                            Icon(
-                                                                painter = painterResource(R.drawable.account),
-                                                                contentDescription = stringResource(R.string.account),
-                                                                modifier = Modifier.size(24.dp)
-                                                            )
-                                                        }
-                                                    }
+                                                IconButton(onClick = { navController.navigate("settings") }) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.settings),
+                                                        contentDescription = stringResource(R.string.settings)
+                                                    )
                                                 }
                                             },
                                             scrollBehavior = searchBarScrollBehavior,
@@ -1248,17 +1227,6 @@ class MainActivity : ComponentActivity() {
                             state = LocalBottomSheetPageState.current,
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
-
-                        if (showAccountDialog) {
-                            AccountSettingsDialog(
-                                navController = navController,
-                                onDismiss = {
-                                    showAccountDialog = false
-                                    homeViewModel.refresh()
-                                },
-                                latestVersionName = latestVersionName
-                            )
-                        }
 
                         sharedSong?.let { song ->
                             playerConnection?.let {

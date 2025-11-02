@@ -56,12 +56,10 @@ import com.metrolist.music.ui.screens.playlist.TopPlaylistScreen
 import com.metrolist.music.ui.screens.playlist.CachePlaylistScreen
 import com.metrolist.music.ui.screens.search.OnlineSearchResult
 import com.metrolist.music.ui.screens.settings.AboutScreen
-import com.metrolist.music.ui.screens.settings.AccountSettings
 import com.metrolist.music.ui.screens.settings.AppearanceSettings
 import com.metrolist.music.ui.screens.settings.BackupAndRestore
 import com.metrolist.music.ui.screens.settings.ContentSettings
 import com.metrolist.music.ui.screens.settings.DarkMode
-import com.metrolist.music.ui.screens.settings.DiscordLoginScreen
 import com.metrolist.music.ui.screens.settings.integrations.DiscordSettings
 import com.metrolist.music.ui.screens.settings.integrations.IntegrationScreen
 import com.metrolist.music.ui.screens.settings.integrations.LastFMSettings
@@ -101,9 +99,6 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("mood_and_genres") {
         MoodAndGenresScreen(navController, scrollBehavior)
-    }
-    composable("account") {
-        AccountScreen(navController, scrollBehavior)
     }
     composable("new_release") {
         NewReleaseScreen(navController, scrollBehavior)
@@ -322,16 +317,10 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/integrations/lastfm") {
         LastFMSettings(navController, scrollBehavior)
     }
-    composable("settings/discord/login") {
-        DiscordLoginScreen(navController)
-    }
     composable("settings/updater") {
         UpdaterScreen(navController, scrollBehavior)
     }
     composable("settings/about") {
         AboutScreen(navController, scrollBehavior)
-    }
-    composable("login") {
-        LoginScreen(navController)
     }
 }

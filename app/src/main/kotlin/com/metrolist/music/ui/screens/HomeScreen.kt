@@ -147,7 +147,6 @@ fun HomeScreen(
     val quickPicks by viewModel.quickPicks.collectAsState()
     val forgottenFavorites by viewModel.forgottenFavorites.collectAsState()
     val keepListening by viewModel.keepListening.collectAsState()
-    val accountPlaylists by viewModel.accountPlaylists.collectAsState()
     val homePage by viewModel.homePage.collectAsState()
     val explorePage by viewModel.explorePage.collectAsState()
     val trendingSongs by viewModel.trendingSongs.collectAsState()
@@ -165,14 +164,6 @@ fun HomeScreen(
 
     val quickPicksLazyGridState = rememberLazyGridState()
     val forgottenFavoritesLazyGridState = rememberLazyGridState()
-
-    val accountName by viewModel.accountName.collectAsState()
-    val accountImageUrl by viewModel.accountImageUrl.collectAsState()
-    val innerTubeCookie by rememberPreference(InnerTubeCookieKey, "")
-    val isLoggedIn = remember(innerTubeCookie) {
-        "SAPISID" in parseCookieString(innerTubeCookie)
-    }
-    val url = if (isLoggedIn) accountImageUrl else null
 
     val scope = rememberCoroutineScope()
     val lazylistState = rememberLazyListState()
@@ -487,60 +478,6 @@ fun HomeScreen(
                         ) {
                             items(keepListening) {
                                 localGridItem(it)
-                            }
-                        }
-                    }
-                }
-
-                accountPlaylists?.takeIf { it.isNotEmpty() }?.let { accountPlaylists ->
-                    item(key = "account_playlists_title") {
-                        NavigationTitle(
-                            label = stringResource(R.string.your_youtube_playlists),
-                            title = accountName,
-                            thumbnail = {
-                                if (url != null) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(url)
-                                            .diskCachePolicy(CachePolicy.ENABLED)
-                                            .diskCacheKey(url)
-                                            .crossfade(false)
-                                            .build(),
-                                        placeholder = painterResource(id = R.drawable.person),
-                                        error = painterResource(id = R.drawable.person),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(ListThumbnailSize)
-                                            .clip(CircleShape)
-                                    )
-                                } else {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.person),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(ListThumbnailSize)
-                                    )
-                                }
-                            },
-                            onClick = {
-                                navController.navigate("account")
-                            },
-                            modifier = Modifier.animateItem()
-                        )
-                    }
-
-                    item(key = "account_playlists_list") {
-                        LazyRow(
-                            contentPadding = WindowInsets.systemBars
-                                .only(WindowInsetsSides.Horizontal)
-                                .asPaddingValues(),
-                            modifier = Modifier.animateItem()
-                        ) {
-                            items(
-                                items = accountPlaylists.distinctBy { it.id },
-                                key = { it.id },
-                            ) { item ->
-                                ytGridItem(item)
                             }
                         }
                     }

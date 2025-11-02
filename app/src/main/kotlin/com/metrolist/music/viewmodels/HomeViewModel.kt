@@ -58,7 +58,6 @@ class HomeViewModel @Inject constructor(
     val quickPicks = MutableStateFlow<List<Song>?>(null)
     val forgottenFavorites = MutableStateFlow<List<Song>?>(null)
     val keepListening = MutableStateFlow<List<LocalItem>?>(null)
-    val accountPlaylists = MutableStateFlow<List<PlaylistItem>?>(null)
     val homePage = MutableStateFlow<HomePage?>(null)
     val explorePage = MutableStateFlow<ExplorePage?>(null)
     val trendingSongs = MutableStateFlow<List<YTItem>>(emptyList())
@@ -68,14 +67,6 @@ class HomeViewModel @Inject constructor(
 
     val allLocalItems = MutableStateFlow<List<LocalItem>>(emptyList())
     val allYtItems = MutableStateFlow<List<YTItem>>(emptyList())
-
-    val accountName = MutableStateFlow("Guest")
-    val accountImageUrl = MutableStateFlow<String?>(null)
-
-    // Track last processed cookie to avoid unnecessary updates
-    private var lastProcessedCookie: String? = null
-    // Track if we're currently processing account data
-    private var isProcessingAccountData = false
 
     private suspend fun getQuickPicks() {
         when (quickPicksEnum.first()) {
@@ -101,18 +92,6 @@ class HomeViewModel @Inject constructor(
         val keepListeningAlbums = database.mostPlayedAlbums(fromTimeStamp, limit = 8, offset = 2).first().filter { it.album.thumbnailUrl != null }.shuffled().take(5)
         val keepListeningArtists = database.mostPlayedArtists(fromTimeStamp).first().filter { it.artist.isYouTubeArtist && it.artist.thumbnailUrl != null }.shuffled().take(5)
         keepListening.value = (keepListeningSongs + keepListeningAlbums + keepListeningArtists).shuffled()
-
-        if (YouTube.cookie != null) {
-            YouTube.library("FEmusic_liked_playlists").completed().onSuccess {
-                accountPlaylists.value = it.items
-                    .filterIsInstance<PlaylistItem>()
-                    .filterNot { it.id == "SE" }
-                    .filterWhitelisted(database)
-                    .filterIsInstance<PlaylistItem>()
-            }.onFailure {
-                reportException(it)
-            }
-        }
 
         YouTube.home().onSuccess { page ->
             homePage.value = page.copy(
@@ -288,42 +267,6 @@ class HomeViewModel @Inject constructor(
             }.collect { songs ->
                 quickPicks.value = songs
             }
-        }
-
-        // Listen for cookie changes and reload account data
-        viewModelScope.launch(Dispatchers.IO) {
-            context.dataStore.data
-                .map { it[InnerTubeCookieKey] }
-                .collect { cookie ->
-                    // Avoid processing if already processing
-                    if (isProcessingAccountData) return@collect
-                    
-                    // Always process cookie changes, even if same value (for logout/login scenarios)
-                    lastProcessedCookie = cookie
-                    isProcessingAccountData = true
-                    
-                    try {
-                        if (cookie != null && cookie.isNotEmpty()) {
-                            
-                            // Update YouTube.cookie manually to ensure it's set
-                            YouTube.cookie = cookie
-                            
-                            // Fetch new account data
-                            YouTube.accountInfo().onSuccess { info ->
-                                accountName.value = info.name
-                                accountImageUrl.value = info.thumbnailUrl
-                            }.onFailure {
-                                reportException(it)
-                            }
-                        } else {
-                            accountName.value = "Guest"
-                            accountImageUrl.value = null
-                            accountPlaylists.value = null
-                        }
-                    } finally {
-                        isProcessingAccountData = false
-                    }
-                }
         }
     }
 }
