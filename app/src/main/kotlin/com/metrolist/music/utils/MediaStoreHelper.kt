@@ -79,7 +79,14 @@ class MediaStoreHelper(private val context: Context) {
             Timber.d("Permission status: ${if (hasPermission) "GRANTED" else "DENIED"}")
 
             // Prepare ContentValues with metadata
-            val relativePath = "${Environment.DIRECTORY_MUSIC}/$ZEMER_FOLDER"
+            // Organize files: Music/Zemer/{Artist}/{Album}/Song.mp3 or Music/Zemer/{Artist}/Song.mp3
+            val sanitizedArtist = sanitizeFolderName(artist)
+            val relativePath = if (!album.isNullOrBlank()) {
+                val sanitizedAlbum = sanitizeFolderName(album)
+                "${Environment.DIRECTORY_MUSIC}/$ZEMER_FOLDER/$sanitizedArtist/$sanitizedAlbum"
+            } else {
+                "${Environment.DIRECTORY_MUSIC}/$ZEMER_FOLDER/$sanitizedArtist"
+            }
             Timber.d("RELATIVE_PATH: $relativePath")
 
             val contentValues = ContentValues().apply {
@@ -308,6 +315,31 @@ class MediaStoreHelper(private val context: Context) {
         }
 
         return sanitized
+    }
+
+    /**
+     * Sanitize a folder name to be safe for filesystem use
+     * Removes invalid characters and limits length
+     *
+     * @param name Original folder name (artist or album name)
+     * @return Sanitized folder name
+     */
+    private fun sanitizeFolderName(name: String): String {
+        if (name.isBlank()) return "Unknown"
+
+        // Remove invalid characters for folder names
+        var sanitized = name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+
+        // Remove leading/trailing whitespace
+        sanitized = sanitized.trim()
+
+        // Limit folder name length (100 chars for compatibility)
+        if (sanitized.length > 100) {
+            sanitized = sanitized.take(100)
+        }
+
+        // Ensure we have a valid folder name
+        return sanitized.ifBlank { "Unknown" }
     }
 
     /**
