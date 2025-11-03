@@ -77,8 +77,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             isCrunchPngs = false
             isDebuggable = false
             signingConfig = signingConfigs.getByName("persistentDebug")
