@@ -894,7 +894,7 @@ interface DatabaseDao {
     fun album(id: String): Flow<Album?>
 
     @Transaction
-    @Query("SELECT * FROM album WHERE id = :albumId")
+    @Query("SELECT * FROM album WHERE id = :albumId AND album.id IN (SELECT albumId FROM album_artist_map WHERE artistId IN (SELECT artistId FROM artist_whitelist))")
     fun albumWithSongs(albumId: String): Flow<AlbumWithSongs?>
 
     @Transaction

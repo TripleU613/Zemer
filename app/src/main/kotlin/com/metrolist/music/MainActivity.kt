@@ -1278,23 +1278,60 @@ class MainActivity : ComponentActivity() {
                     coroutineScope.launch(Dispatchers.IO) {
                         YouTube.albumSongs(playlistId).onSuccess { songs ->
                             songs.firstOrNull()?.album?.id?.let { browseId ->
-                                withContext(Dispatchers.Main) {
-                                    navController.navigate("album/$browseId")
+                                // Check if album is whitelisted before navigating
+                                val album = database.album(browseId).first()
+                                if (album != null) {
+                                    withContext(Dispatchers.Main) {
+                                        navController.navigate("album/$browseId")
+                                    }
                                 }
+                                // Silently ignore if not whitelisted
                             }
                         }.onFailure { reportException(it) }
                     }
                 } else {
-                    navController.navigate("online_playlist/$playlistId")
+                    coroutineScope.launch(Dispatchers.IO) {
+                        // Fetch playlist and check if it has any whitelisted songs
+                        YouTube.playlist(playlistId).onSuccess { playlistPage ->
+                            val whitelistedSongs = playlistPage.songs
+                                .filterWhitelisted(database)
+                                .filterIsInstance<SongItem>()
+
+                            if (whitelistedSongs.isNotEmpty()) {
+                                withContext(Dispatchers.Main) {
+                                    navController.navigate("online_playlist/$playlistId")
+                                }
+                            }
+                            // Silently ignore if no whitelisted songs
+                        }.onFailure { reportException(it) }
+                    }
                 }
             }
 
             "browse" -> uri.lastPathSegment?.let { browseId ->
-                navController.navigate("album/$browseId")
+                coroutineScope.launch(Dispatchers.IO) {
+                    // Check if album exists and is whitelisted before navigating
+                    val album = database.album(browseId).first()
+                    if (album != null) {
+                        withContext(Dispatchers.Main) {
+                            navController.navigate("album/$browseId")
+                        }
+                    }
+                    // Silently ignore if album doesn't exist or isn't whitelisted
+                }
             }
 
             "channel", "c" -> uri.lastPathSegment?.let { artistId ->
-                navController.navigate("artist/$artistId")
+                coroutineScope.launch(Dispatchers.IO) {
+                    // Check if artist is whitelisted before navigating
+                    val isWhitelisted = database.isArtistWhitelisted(artistId)
+                    if (isWhitelisted) {
+                        withContext(Dispatchers.Main) {
+                            navController.navigate("artist/$artistId")
+                        }
+                    }
+                    // Silently ignore if not whitelisted
+                }
             }
 
             else -> {
