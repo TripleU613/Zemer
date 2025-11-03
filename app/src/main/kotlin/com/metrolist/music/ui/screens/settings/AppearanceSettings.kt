@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,8 @@ import com.metrolist.music.R
 import com.metrolist.music.constants.ChipSortTypeKey
 import com.metrolist.music.constants.DarkModeKey
 import com.metrolist.music.constants.DefaultOpenTabKey
+import com.metrolist.music.constants.DensityScale
+import com.metrolist.music.constants.DensityScaleKey
 import com.metrolist.music.constants.DynamicThemeKey
 import com.metrolist.music.constants.GridItemSize
 import com.metrolist.music.constants.GridItemsSizeKey
@@ -120,6 +123,20 @@ fun AppearanceSettings(
             defaultValue = PlayerBackgroundStyle.DEFAULT,
         )
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
+    val (densityScale, setDensityScale) = rememberPreference(DensityScaleKey, defaultValue = 1.0f)
+    val context = LocalContext.current
+    var showRestartDialog by rememberSaveable { mutableStateOf(false) }
+
+    val onDensityScaleChange: (Float) -> Unit = { newScale ->
+        setDensityScale(newScale)
+        // Also write to SharedPreferences for DensityScaler to read on next startup
+        context.getSharedPreferences("metrolist_settings", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putFloat("density_scale_factor", newScale)
+            .apply()
+        showRestartDialog = true
+    }
+
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberEnumPreference(
         DefaultOpenTabKey,
         defaultValue = NavigationTab.HOME
@@ -381,6 +398,17 @@ fun AppearanceSettings(
                 onCheckedChange = onPureBlackChange,
             )
         }
+
+        ListPreference(
+            title = { Text("Display Density") },
+            icon = { Icon(painterResource(R.drawable.grid_view), null) },
+            selectedValue = densityScale,
+            values = DensityScale.entries.map { it.value },
+            valueText = { scale ->
+                DensityScale.fromValue(scale).label
+            },
+            onValueSelected = onDensityScaleChange,
+        )
 
         PreferenceGroupTitle(
             title = stringResource(R.string.player),
@@ -668,6 +696,45 @@ fun AppearanceSettings(
             checked = showUploadedPlaylist,
             onCheckedChange = onShowUploadedPlaylistChange
         )
+    }
+
+    if (showRestartDialog) {
+        DefaultDialog(
+            onDismiss = { showRestartDialog = false },
+            buttons = {
+                TextButton(
+                    onClick = { showRestartDialog = false }
+                ) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+                TextButton(
+                    onClick = {
+                        showRestartDialog = false
+                        // Restart the app
+                        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                        intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                    }
+                ) {
+                    Text(text = "Restart")
+                }
+            }
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Restart Required",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "The display density change will take effect after restarting the app. Do you want to restart now?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
     }
 
     TopAppBar(

@@ -103,22 +103,10 @@ The project is organized into multiple Gradle modules:
 2. **innertube** - YouTube InnerTube API client (pure Kotlin/JVM)
    - Handles communication with YouTube Music's private API
    - Independent of Android framework
-   - Uses Ktor + OkHttp + NewPipe Extractor
+   - Uses Ktor + OkHttp + custom NewPipe Extractor fork (`com.github.mostafaalagamy:MetrolistExtractor`)
 
-3. **kugou** - KuGou lyrics provider integration (pure Kotlin/JVM)
-   - Chinese lyrics database provider
-   - Uses Ktor client
-
-4. **lrclib** - LRCLib lyrics provider (pure Kotlin/JVM)
+3. **lrclib** - LRCLib lyrics provider (pure Kotlin/JVM)
    - Open-source synced lyrics database
-   - Uses Ktor client
-
-5. **kizzy** - Discord Rich Presence integration (pure Kotlin/JVM)
-   - Shows currently playing music on Discord
-   - Uses Ktor + JSON library
-
-6. **lastfm** - Last.fm scrobbling client (pure Kotlin/JVM)
-   - Requires API keys (optional for local builds)
    - Uses Ktor client
 
 **Note**: All non-app modules are pure JVM/Kotlin with no Android dependencies, making them independently testable.
@@ -159,10 +147,10 @@ app/schemas/                  # Room database schema exports for testing
 
 The Room database (`song.db`) is the core of the app with **25 schema versions**. It uses:
 
-- **16 Entities**: SongEntity, ArtistEntity, AlbumEntity, PlaylistEntity, LyricsEntity, FormatEntity, Event, PlayCountEntity, SearchHistory, ArtistWhitelistEntity, plus 6 mapping tables
-- **Mapping tables**: SongArtistMap, SongAlbumMap, AlbumArtistMap, PlaylistSongMap, RelatedSongMap, SongArtistMapPreview
+- **16 Entities**: SongEntity, ArtistEntity, AlbumEntity, PlaylistEntity, LyricsEntity, FormatEntity, Event, PlayCountEntity, SearchHistory, ArtistWhitelistEntity, SetVideoIdEntity, plus 5 mapping tables (SongArtistMap, SongAlbumMap, AlbumArtistMap, PlaylistSongMap, RelatedSongMap)
 - **3 Views**: SortedSongArtistMap, SortedSongAlbumMap, PlaylistSongMapPreview
-- **24 Migrations**: Mix of AutoMigrations and manual migrations from version 1 to 25
+- **24 Migrations**: 1 manual migration (MIGRATION_1_2) and 23 AutoMigrations from version 2 to 25
+- **DatabaseDao**: Main DAO with 1601 lines of query methods - handles all database operations
 - **Features**: Artist whitelist filtering, format caching, play count tracking, lyrics storage, event tracking
 
 Schema exports are located in `app/schemas/` and configured via KSP:
@@ -203,22 +191,11 @@ Release builds have:
 
 ### Environment Variables
 
-The app uses environment variables for sensitive data (injected as `BuildConfig` fields):
-
-```kotlin
-buildConfigField("String", "LASTFM_API_KEY", "\"${System.getenv("LASTFM_API_KEY") ?: ""}\"")
-buildConfigField("String", "LASTFM_SECRET", "\"${System.getenv("LASTFM_SECRET") ?: ""}\"")
-```
-
-For local development, Last.fm API keys are optional (will be empty strings). Get keys from: https://www.last.fm/api/account/create
-
-For CI/CD, set GitHub Secrets:
-- `LASTFM_API_KEY`
-- `LASTFM_SECRET`
-- `KEYSTORE` (base64-encoded)
-- `KEY_ALIAS`
-- `KEYSTORE_PASSWORD`
-- `KEY_PASSWORD`
+For CI/CD, the following GitHub Secrets are required for signing and releases:
+- `KEYSTORE` (base64-encoded release keystore)
+- `KEY_ALIAS` (signing key alias)
+- `STORE_PASSWORD` (keystore password)
+- `KEY_PASSWORD` (key password)
 - `DEBUG_KEYSTORE` (base64-encoded, for persistent debug signing)
 - `RELEASE_TOKEN` (GitHub token for creating releases)
 
@@ -272,7 +249,14 @@ The app uses Weblate for translations (60+ languages):
 
 ### Signing
 
-Debug builds use a persistent keystore (`app/persistent-debug.keystore`) for consistent signing across builds and devices. In CI, this is restored from the `DEBUG_KEYSTORE` secret.
+The app uses different keystores for debug and release builds:
+
+- **Release Builds**: Use production keystore from `KEYSTORE` GitHub Secret (base64-encoded)
+- **Debug Builds (Local)**: Use persistent keystore (`app/persistent-debug.keystore`) for consistent signing across builds and devices
+- **Debug Builds (PR)**: Use standard Android debug keystore for pull request validation
+- **CI/CD**: Persistent debug keystore is restored from `DEBUG_KEYSTORE` secret
+
+The persistent debug keystore ensures consistent app signatures during local development, avoiding reinstallation when switching between machines or builds.
 
 ## Important Development Notes
 
@@ -299,9 +283,33 @@ The app uses a single-activity architecture with Compose Navigation. All screens
 
 User preferences are stored using Jetpack DataStore (not SharedPreferences). See `app/src/main/kotlin/com/metrolist/music/constants/PreferenceKeys.kt` and related DataStore utilities for preference keys.
 
-### Artist Whitelist
+### Artist Whitelist System
 
-The app includes an artist whitelist feature that syncs on app launch (blocking) and hourly in the background. See `app/src/main/kotlin/com/metrolist/music/utils/SyncUtils.kt` for sync logic.
+A critical architectural feature that filters all content by whitelisted artists:
+
+- **Sync on Launch**: Blocks app startup to ensure whitelist is current (`SyncUtils.kt`)
+- **Background Sync**: Runs hourly to check for whitelist updates
+- **Hash-Based Detection**: Only syncs when remote whitelist changes (efficient)
+- **Data Source**: Fetches artist JSON from GitHub via `WhitelistFetcher.kt`
+- **Aggressive Cleanup**: Automatically deletes songs, albums, and playlists when artists are removed from whitelist
+- **Progress Tracking**: `WhitelistSyncProgress` StateFlow for UI updates
+- **Database Integration**: Uses `ArtistWhitelistEntity` with Room
+
+This feature ensures only approved content appears in the app and may impact initial launch time.
+
+### Lyrics Architecture
+
+The app uses a multi-provider lyrics system with automatic fallback:
+
+- **LRCLib Module** (`lrclib/`) - Open-source synced lyrics database (primary source)
+- **YouTubeSubtitleLyricsProvider** - Extracts official YouTube captions/subtitles
+- **YouTubeLyricsProvider** - Fetches lyrics from YouTube Music's lyrics feature
+- **LyricsHelper** (`utils/LyricsHelper.kt`) - Aggregates all providers with priority-based fallback
+- **Romanization Support** - Can provide romanized lyrics for non-Latin scripts
+- **Database Storage** - Cached in `LyricsEntity` for offline access
+- **LyricsEntry Model** - Unified data model for all lyric types (synced/plain)
+
+The LyricsHelper tries providers in order until lyrics are found, ensuring maximum coverage.
 
 ### Room Migrations
 
@@ -317,7 +325,18 @@ The app uses Timber for logging. Use `Timber.d()`, `Timber.e()`, etc. instead of
 
 ### Material 3 Dynamic Theming
 
-The app supports Material 3 dynamic color (Material You) on Android 12+, plus custom light/dark/black themes.
+The app supports Material 3 dynamic color (Material You) on Android 12+, plus custom light/dark/black themes. Uses **materialKolor** library for enhanced dynamic color generation across all Android versions.
+
+### Key Dependencies
+
+Beyond the standard Android libraries, the app uses several specialized dependencies:
+
+- **materialKolor** - Advanced Material 3 dynamic color theming (supports pre-Android 12)
+- **squigglyslider** - Custom slider component for UI controls
+- **shimmer** - Loading state skeleton animations
+- **ucrop** - Image cropping library for cover art editing
+- **guava** - Google Core Libraries for Java (used for utilities)
+- **concurrent-futures** - Kotlin coroutine integration with Java futures
 
 ### Android Auto & TV
 
@@ -326,6 +345,10 @@ The app has Android Auto support via MediaSession and Android TV support via lea
 ### Region Restrictions
 
 YouTube Music is not available in all regions. Users may need a VPN/proxy to use the app in unsupported regions.
+
+## Project Documentation
+
+This repository does not have a README.md file with user-facing documentation - all developer documentation is maintained in this CLAUDE.md file. The project is likely used internally or in a private context.
 
 ## Common Development Patterns
 
