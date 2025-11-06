@@ -24,6 +24,10 @@ android {
         multiDexEnabled = true
     }
 
+    androidResources {
+        localeFilters += listOf("en", "iw")
+    }
+
     flavorDimensions += "abi"
     productFlavors {
         create("universal") {
